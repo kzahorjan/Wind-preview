@@ -60,7 +60,7 @@ let lastT = null;
 let windSpeed = 4, windDir = 270, gust = 5;
 let targetWindSpeed = 4, targetWindDir = 270, targetGust = 5;
 let cloudCover = 50, targetCloudCover = 50;
-let temp = 15, targetTemp = 15;
+let targetTemp = 15;
 
 // Cursor disturbs nearby marks — reads the crosshair as a little probe.
 let mouseX = -9999, mouseY = -9999, mouseActive = false;
@@ -90,6 +90,29 @@ function computeCharOffsets(word, fontSize) {
   return offsets;
 }
 
+/* ---------------- checkered grayscale background (2px cells) ---------------- */
+let bgPattern = null;
+function buildBackground() {
+  const cellDev = Math.max(1, Math.round(2 * dpr)); // one 2px CSS cell in device pixels
+  const size = cellDev * 2;
+  const tile = document.createElement("canvas");
+  tile.width = tile.height = size;
+  const t = tile.getContext("2d");
+  t.fillStyle = "#ffffff";
+  t.fillRect(0, 0, size, size);
+  t.fillStyle = "#e8e8e8";
+  t.fillRect(0, 0, cellDev, cellDev);
+  t.fillRect(cellDev, cellDev, cellDev, cellDev);
+  bgPattern = ctx.createPattern(tile, "repeat");
+  // keep the tile exactly 4 CSS px wide regardless of the context's dpr scaling
+  if (bgPattern && bgPattern.setTransform) bgPattern.setTransform(new DOMMatrix().scale(4 / size));
+}
+function paintBackground() {
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = bgPattern || "#fff";
+  ctx.fillRect(0, 0, W, H);
+}
+
 function resize() {
   dpr = Math.min(devicePixelRatio || 1, 2);
   W = innerWidth; H = innerHeight;
@@ -98,6 +121,7 @@ function resize() {
   canvas.style.width = W+"px";
   canvas.style.height = H+"px";
   ctx.setTransform(dpr,0,0,dpr,0,0);
+  buildBackground();
   regenerate();
 }
 
@@ -107,8 +131,7 @@ function regenerate() {
   if (clouds.length === 0) initClouds();
   running = true;
   lastT = null;
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0,0,W,H);
+  paintBackground();
 }
 
 function makeArrow() {
@@ -276,7 +299,7 @@ function tempObstacle() {
 }
 
 function drawTemperature() {
-  const label = Math.round(temp) + "°";
+  const label = Math.round(targetTemp) + "°";
   const o = tempObstacle();
 
   ctx.save();
@@ -304,7 +327,6 @@ function stepField(dt) {
   windDir   += shortestAngleDelta(windDir, targetWindDir) * k;
   windDir   = (windDir + 360) % 360;
   cloudCover += (targetCloudCover - cloudCover) * k;
-  temp += (targetTemp - temp) * k;
 
   const baseRad = windDir * Math.PI / 180;
   const gustBoost = 1 + Math.max(0, gust - windSpeed) * 0.15;
@@ -353,9 +375,7 @@ function stepField(dt) {
 function draw() {
   // Fully opaque clear — no accumulated history, no fading tail. Each mark is drawn
   // at the same flat opacity for its whole life, then simply disappears (see respawn()).
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0,0,W,H);
+  paintBackground();
 
   ctx.fillStyle = "#000";
   ctx.globalAlpha = 1;
